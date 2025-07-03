@@ -298,23 +298,7 @@ export const SoundMixer: React.FC = () => {
           </div>
         </div>
 
-        {/* Development Notice */}
-        <div className="mt-8 md:mt-12 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-lg mb-4">
-            <span className="text-amber-500 text-sm">⚠️</span>
-            <p className="text-sm text-amber-600 dark:text-amber-400">
-              Audio files are not included in this demo. Add MP3 files to{" "}
-              <code className="px-1 py-0.5 bg-amber-500/20 rounded text-xs">
-                public/sounds/
-              </code>{" "}
-              for full functionality.
-            </p>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Your mix is automatically saved and will be restored on your next
-            visit
-          </p>
-        </div>
+       
       </div>
     </div>
   );
