@@ -1,0 +1,390 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+
+export interface SubSound {
+  id: string;
+  name: string;
+  url: string;
+  volume: number;
+  isActive: boolean;
+}
+
+export interface SoundCategory {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  sounds: SubSound[];
+}
+
+export interface AudioState {
+  isPlaying: boolean;
+  categories: SoundCategory[];
+}
+
+const INITIAL_CATEGORIES: Omit<SoundCategory, "sounds">[] = [
+  {
+    id: "nature",
+    name: "Nature",
+    icon: "🌿",
+    description: "Natural outdoor ambience",
+  },
+  {
+    id: "indoor",
+    name: "Indoor",
+    icon: "🏠",
+    description: "Cozy indoor atmospheres",
+  },
+  {
+    id: "synthetic",
+    name: "Synthetic",
+    icon: "⚡",
+    description: "Generated ambient tones",
+  },
+  {
+    id: "wildlife",
+    name: "Wildlife",
+    icon: "🦋",
+    description: "Animal and nature sounds",
+  },
+  {
+    id: "weather",
+    name: "Weather",
+    icon: "⛈️",
+    description: "Atmospheric weather sounds",
+  },
+];
+
+const INITIAL_SOUNDS: Record<string, Omit<SubSound, "volume" | "isActive">[]> =
+  {
+    nature: [
+      {
+        id: "gentle-rain",
+        name: "Gentle Rain",
+        url: "./public/sounds/gentle-rain.mp3",
+      },
+      {
+        id: "ocean-waves",
+        name: "Ocean Waves",
+        url: "./public/sounds/ocean-waves.mp3",
+      },
+      {
+        id: "forest-breeze",
+        name: "Forest Breeze",
+        url: "./public/sounds/forest-breeze.mp3",
+      },
+    ],
+    indoor: [
+      {
+        id: "fireplace",
+        name: "Fireplace Crackle",
+        url: "./public/sounds/fireplace.mp3",
+      },
+      {
+        id: "cafe-chatter",
+        name: "Cafe Chatter",
+        url: "./public/sounds/cafe-chatter.mp3",
+      },
+      {
+        id: "ticking-clock",
+        name: "Ticking Clock",
+        url: "./public/sounds/ticking-clock.mp3",
+      },
+    ],
+    synthetic: [
+      {
+        id: "white-noise",
+        name: "White Noise",
+        url: "./public/sounds/white-noise.mp3",
+      },
+      { id: "pink-noise", name: "Pink Noise", url: "./public/sounds/pink-noise.mp3" },
+      {
+        id: "brown-noise",
+        name: "Brown Noise",
+        url: "./public/sounds/brown-noise.mp3",
+      },
+    ],
+    wildlife: [
+      {
+        id: "morning-birds",
+        name: "Morning Birdsong",
+        url: "./public/sounds/morning-birds.mp3",
+      },
+      { id: "crickets", name: "Crickets", url: "./public/sounds/crickets.mp3" },
+      { id: "frogs", name: "Frogs", url: "./public/sounds/frogs.mp3" },
+    ],
+    weather: [
+      {
+        id: "soft-thunder",
+        name: "Soft Thunder",
+        url: "./public/sounds/soft-thunder.mp3",
+      },
+      {
+        id: "stormy-wind",
+        name: "Stormy Wind",
+        url: "./public/sounds/stormy-wind.mp3",
+      },
+      {
+        id: "snow-blizzard",
+        name: "Snow Blizzard",
+        url: "./public/sounds/snow-blizzard.mp3",
+      },
+    ],
+  };
+
+export const useAudio = () => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [globalSpeed, setGlobalSpeed] = useState(1.0); // 1.0 = normal speed
+  const [globalFrequency, setGlobalFrequency] = useState(1000); // 1000Hz = normal
+  const [categories, setCategories] = useState<SoundCategory[]>(() =>
+    INITIAL_CATEGORIES.map((category) => ({
+      ...category,
+      sounds: INITIAL_SOUNDS[category.id].map((sound) => ({
+        ...sound,
+        volume: 0,
+        isActive: false,
+      })),
+    })),
+  );
+
+  const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const gainNodes = useRef<Map<string, GainNode>>(new Map());
+  const filterNodes = useRef<Map<string, BiquadFilterNode>>(new Map());
+  const audioContext = useRef<AudioContext | null>(null);
+
+  // Get all sounds flattened
+  const allSounds = categories.flatMap((category) => category.sounds);
+
+  // Initialize audio context and elements
+  useEffect(() => {
+    const initAudio = async () => {
+      try {
+        audioContext.current = new (window.AudioContext ||
+          (window as any).webkitAudioContext)();
+
+        for (const category of INITIAL_CATEGORIES) {
+          for (const sound of INITIAL_SOUNDS[category.id]) {
+            const audio = new Audio();
+            audio.src = sound.url;
+            audio.loop = true;
+            audio.preload = "metadata";
+
+            // Handle load errors gracefully
+            audio.addEventListener("error", () => {
+              console.warn(`Failed to load audio: ${sound.name}`);
+            });
+
+            // Create audio processing chain: source -> filter -> gain -> destination
+            const gainNode = audioContext.current.createGain();
+            const filterNode = audioContext.current.createBiquadFilter();
+            const source = audioContext.current.createMediaElementSource(audio);
+
+            // Configure filter
+            filterNode.type = "lowpass";
+            filterNode.frequency.value = globalFrequency;
+            filterNode.Q.value = 1;
+
+            // Connect the audio chain
+            source.connect(filterNode);
+            filterNode.connect(gainNode);
+            gainNode.connect(audioContext.current.destination);
+
+            gainNode.gain.value = 0;
+
+            audioRefs.current.set(sound.id, audio);
+            gainNodes.current.set(sound.id, gainNode);
+            filterNodes.current.set(sound.id, filterNode);
+          }
+        }
+      } catch (error) {
+        console.warn("Audio initialization failed:", error);
+      }
+    };
+
+    initAudio();
+
+    return () => {
+      audioRefs.current.forEach((audio) => {
+        audio.pause();
+        audio.src = "";
+      });
+      audioRefs.current.clear();
+      gainNodes.current.clear();
+      filterNodes.current.clear();
+
+      if (audioContext.current?.state !== "closed") {
+        audioContext.current?.close();
+      }
+    };
+  }, []);
+
+  const togglePlayback = useCallback(async () => {
+    if (!audioContext.current) return;
+
+    try {
+      if (audioContext.current.state === "suspended") {
+        await audioContext.current.resume();
+      }
+
+      if (isPlaying) {
+        // Pause all sounds
+        audioRefs.current.forEach((audio) => audio.pause());
+        setIsPlaying(false);
+      } else {
+        // Play active sounds
+        const promises = Array.from(audioRefs.current.entries()).map(
+          ([id, audio]) => {
+            const sound = allSounds.find((s) => s.id === id);
+            if (sound?.isActive) {
+              return audio
+                .play()
+                .catch((e) => console.warn(`Failed to play ${id}:`, e));
+            }
+          },
+        );
+
+        await Promise.allSettled(promises);
+        setIsPlaying(true);
+      }
+    } catch (error) {
+      console.error("Playback error:", error);
+    }
+  }, [isPlaying, allSounds]);
+
+  const updateSoundVolume = useCallback(
+    (categoryId: string, soundId: string, volume: number) => {
+      setCategories((prev) =>
+        prev.map((category) =>
+          category.id === categoryId
+            ? {
+                ...category,
+                sounds: category.sounds.map((sound) =>
+                  sound.id === soundId
+                    ? { ...sound, volume, isActive: volume > 0 }
+                    : sound,
+                ),
+              }
+            : category,
+        ),
+      );
+
+      const gainNode = gainNodes.current.get(soundId);
+      if (gainNode) {
+        gainNode.gain.setValueAtTime(
+          volume / 100,
+          audioContext.current?.currentTime || 0,
+        );
+      }
+
+      // Auto-play if volume is set and we're in playing state
+      if (volume > 0 && isPlaying) {
+        const audio = audioRefs.current.get(soundId);
+        audio
+          ?.play()
+          .catch((e) => console.warn(`Failed to play ${soundId}:`, e));
+      } else if (volume === 0) {
+        const audio = audioRefs.current.get(soundId);
+        audio?.pause();
+      }
+    },
+    [isPlaying],
+  );
+
+  const randomizeMix = useCallback(() => {
+    setCategories((prev) =>
+      prev.map((category) => ({
+        ...category,
+        sounds: category.sounds.map((sound) => {
+          const shouldBeActive = Math.random() > 0.6; // 40% chance to be active
+          const volume = shouldBeActive
+            ? Math.floor(Math.random() * 60) + 30
+            : 0; // 30-90% volume
+
+          const gainNode = gainNodes.current.get(sound.id);
+          if (gainNode) {
+            gainNode.gain.setValueAtTime(
+              volume / 100,
+              audioContext.current?.currentTime || 0,
+            );
+          }
+
+          if (volume > 0 && isPlaying) {
+            const audio = audioRefs.current.get(sound.id);
+            audio
+              ?.play()
+              .catch((e) => console.warn(`Failed to play ${sound.id}:`, e));
+          } else {
+            const audio = audioRefs.current.get(sound.id);
+            audio?.pause();
+          }
+
+          return {
+            ...sound,
+            volume,
+            isActive: volume > 0,
+          };
+        }),
+      })),
+    );
+  }, [isPlaying]);
+
+  const resetAllSounds = useCallback(() => {
+    setCategories((prev) =>
+      prev.map((category) => ({
+        ...category,
+        sounds: category.sounds.map((sound) => {
+          const gainNode = gainNodes.current.get(sound.id);
+          if (gainNode) {
+            gainNode.gain.setValueAtTime(
+              0,
+              audioContext.current?.currentTime || 0,
+            );
+          }
+
+          const audio = audioRefs.current.get(sound.id);
+          audio?.pause();
+
+          return {
+            ...sound,
+            volume: 0,
+            isActive: false,
+          };
+        }),
+      })),
+    );
+  }, []);
+
+  const updateGlobalSpeed = useCallback((speed: number) => {
+    setGlobalSpeed(speed);
+
+    // Update playback rate for all audio elements
+    audioRefs.current.forEach((audio) => {
+      audio.playbackRate = speed;
+    });
+  }, []);
+
+  const updateGlobalFrequency = useCallback((frequency: number) => {
+    setGlobalFrequency(frequency);
+
+    // Update frequency for all filter nodes
+    filterNodes.current.forEach((filterNode) => {
+      filterNode.frequency.setValueAtTime(
+        frequency,
+        audioContext.current?.currentTime || 0,
+      );
+    });
+  }, []);
+
+  return {
+    isPlaying,
+    categories,
+    allSounds,
+    globalSpeed,
+    globalFrequency,
+    togglePlayback,
+    updateSoundVolume,
+    randomizeMix,
+    resetAllSounds,
+    updateGlobalSpeed,
+    updateGlobalFrequency,
+  };
+};
