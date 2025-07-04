@@ -114,6 +114,16 @@ const INITIAL_SOUNDS: Record<string, Omit<SubSound, "volume" | "isActive">[]> =
         name: "Ticking Clock",
         url: "/sounds/ticking-clock.mp3",
       },
+      {
+        id: "library-ambience",
+        name: "Library Ambience",
+        url: "/sounds/library-ambience.mp3",
+      },
+      {
+        id: "writing-with-pencil-on-paper",
+        name: "Pencil on Paper",
+        url: "/sounds/writing-with-pencil-on-paper.mp3",
+      },
     ],
     synthetic: [
       {
