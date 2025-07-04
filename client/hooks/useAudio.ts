@@ -25,6 +25,12 @@ export interface SoundCategory {
 
 const INITIAL_CATEGORIES: Omit<SoundCategory, "sounds">[] = [
   {
+    id: "lofi",
+    name: "Lofi Music",
+    icon: "🎵",
+    description: "Chill lofi beats",
+  },
+  {
     id: "nature",
     name: "Nature",
     icon: "🌿",
@@ -58,6 +64,23 @@ const INITIAL_CATEGORIES: Omit<SoundCategory, "sounds">[] = [
 
 const INITIAL_SOUNDS: Record<string, Omit<SubSound, "volume" | "isActive">[]> =
   {
+    lofi: [
+      {
+        id: "lofi-sound-1",
+        name: "Sound 1",
+        url: "/sounds/lofi-sound-1.mp3",
+      },
+      {
+        id: "lofi-sound-2",
+        name: "Sound 2",
+        url: "/sounds/lofi-sound-2.mp3",
+      },
+      {
+        id: "lofi-sound-3",
+        name: "Sound 3",
+        url: "/sounds/lofi-sound-3.mp3",
+      },
+    ],
     nature: [
       {
         id: "gentle-rain",
